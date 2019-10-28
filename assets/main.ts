@@ -14,10 +14,11 @@ export default class name extends cc.Component {
     role:cc.Node;
     @property(cc.Node)
     end:cc.Node;
-    side = 100
+    side = 50
     side2 = this.side - 2;
 
     roleOldPosition:cc.Vec2;
+    roleOldGrid;
     @property(cc.Graphics)
     graphics :cc.Graphics;
 
@@ -30,6 +31,18 @@ export default class name extends cc.Component {
         this.role.on(cc.Node.EventType.TOUCH_MOVE, (e:cc.Event.EventTouch)=>{
             this.role.x = this.role.x + e.getDeltaX();
             this.role.y = this.role.y + e.getDeltaY();
+
+            let location = e.getLocation();
+            let mapPos = this.map.convertToNodeSpaceAR(location);
+            let grid = this.getMapGrid(mapPos.x, mapPos.y);
+            let gridPos = this.getMapPosition(grid.x, grid.y);
+            if (grid != this.roleOldGrid) {
+                
+                this.updateRoleGrid(grid.x,grid.y);
+                this.roleOldGrid = grid;
+            }
+            // let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
+            // this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
 
         })
         this.role.on(cc.Node.EventType.TOUCH_END, (e:cc.Event.EventTouch)=>{
@@ -52,23 +65,30 @@ export default class name extends cc.Component {
         let end = AstarManager.createGrid(3, 3);
         let road = AstarManager.search(start, end);
         this.graphics.clear();
+        this.graphics.lineWidth = 10;
+        this.graphics.fillColor.fromHEX('#ff0000');
         if (road) {
-            let npos = this.getMapPosition(road.x, road.y);
-            let wpos = this.map.convertToWorldSpaceAR(npos);
-            this.graphics.moveTo(wpos.x,wpos.y);
-            while(road.parent) {
-                console.log(road.key);
+            // let npos = this.getMapPosition(road.x, road.y);
+            // let wpos = this.map.convertToWorldSpaceAR(npos);
+            // this.graphics.moveTo(wpos.x,wpos.y);
+            let i = 0;
+            while(road) {
                 let npos = this.getMapPosition(road.x, road.y);
-                console.log('n:',npos);
                 let wpos = this.map.convertToWorldSpaceAR(npos);
+                console.log(road.key);
+                console.log('n:',npos);
                 console.log('w:',wpos);
-                
-                this.graphics.lineTo(wpos.x,wpos.y);
+                if (i == 0 || (road.parent && road.x != road.parent.x && road.y != road.parent.y) {
+                    this.graphics.moveTo(wpos.x,wpos.y);
+                }else {
+                    this.graphics.lineTo(wpos.x,wpos.y);
+                }
                 road = road.parent;
+                i++;
             }
             this.graphics.close();
             this.graphics.stroke();
-            this.graphics.fill();
+            // this.graphics.fill();
         }
     }
     
@@ -134,7 +154,7 @@ export default class name extends cc.Component {
         }
         let nodes = this.map.children;
         for (const child of nodes) {
-            cc.log(child.name,child.color);
+            cc.log(child.name,child);
         }
 
         // 位置标记
@@ -144,10 +164,12 @@ export default class name extends cc.Component {
         let wEpos = this.map.convertToWorldSpaceAR(this.getMapPosition(e.x, e.y));
         start.position = start.parent.convertToNodeSpaceAR(wSpos);
         end.position = start.parent.convertToNodeSpaceAR(wEpos);
+
+        this.map.getChildByName('0*5').color = cc.Color.RED;
     }
 
     getMapPosition(x,y){
-        return cc.v2((parseInt(x))*this.side, (parseInt(y))*this.side);
+        return cc.v2((parseInt(x) + 0.5)*this.side, (parseInt(y) + 0.5)*this.side);
     }
     getMapGrid(x,y){
         return cc.v2(Math.floor(x / this.side),Math.floor(y / this.side));
