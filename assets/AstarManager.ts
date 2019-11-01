@@ -1,3 +1,4 @@
+import { Quat } from './../creator.d';
 console.log('ts');
 
 // A 星寻路算法 F = G + H;
@@ -12,7 +13,15 @@ export enum GRID_TYPE {
     FLOOR = 1, //地板
     WALL = 2, //墙
     RIVER = 3, //河
+    SAND = 4, //沙
 }
+/**
+ * 不可穿过的类型
+ */
+let NOT_PASS_TYPES = [
+    GRID_TYPE.WALL,
+    GRID_TYPE.RIVER,
+]
 export enum DIRECT_TYPE{
     FOUR = 1,//四向
     EIGHT = 2,//八向
@@ -32,13 +41,39 @@ class Grid {
         this.y = y;
         this.key = this.x + '*' + this.y;
     }
+    /**
+     * 判断同一个格子
+     * @param grid 
+     */
     equals(grid:Grid){
         return this.key == grid.key;
     }
+    /**
+     * 更新 价值
+     * @param start 
+     * @param end 
+     */
     updateFGH(start:Grid,end:Grid){
-        this.g = Math.abs(this.x - start.x ) + Math.abs(this.y - start.y);
-        this.h = Math.abs(this.x - end.x ) + Math.abs(this.y - end.y);
+        // this.g = Math.abs(this.x - start.x ) + Math.abs(this.y - start.y);
+        // this.h = Math.abs(this.x - end.x ) + Math.abs(this.y - end.y);
+        this.g = Math.pow(this.x - start.x , 2) + Math.pow(this.y - start.y, 2);
+        this.h = Math.pow(this.x - end.x , 2) + Math.pow(this.y - end.y, 2);
         this.f = this.g + this.h;
+    }
+    /**
+     * 获取 实际坐标 (锚点:左下(0,0))
+     * @param x 
+     * @param y 
+     */
+    getPosition(){
+        return cc.v2(this.x + 0.5 * AstarManager.side, (this.y + 0.5) * AstarManager.side);
+    }
+    /**
+     * 格式是否可通过;
+     */
+    canPass(){
+        let idx = NOT_PASS_TYPES.indexOf(this.type);
+        return idx == -1;
     }
 }
 class AstarManagerClass {
@@ -49,7 +84,7 @@ class AstarManagerClass {
     closeList:Grid[] = []; // 已到达的格子
     start:Grid;
     end:Grid;
-    directType=DIRECT_TYPE.FOUR; //寻路方式 (四向 / 八向);
+    directType=DIRECT_TYPE.EIGHT; //寻路方式 (四向 / 八向);
     map={};
     static readonly instance = new AstarManagerClass();
 
@@ -76,7 +111,13 @@ class AstarManagerClass {
         }
 
     }
-    search(start:Grid, end:Grid) {
+    /**
+     * 查找路线
+     * @param start 起点
+     * @param end 终点
+     * return 终点对象
+     */
+    search(start:Grid, end:Grid):Grid {
         this.start = start;
         this.end = end;
         this.closeList = [];
@@ -110,6 +151,9 @@ class AstarManagerClass {
         //OpenList用尽，仍然找不到终点，说明终点不可到达，返回空
         return null;
     }
+    /**
+     * 获得最小 F 值的节点
+     */
     findMinOpenGrid():Grid {
         let gird:Grid;
         if (this.openList.length == 0) {
@@ -124,6 +168,9 @@ class AstarManagerClass {
         })
         return this.openList[0];
     }
+    /**
+     *删除可通行节点
+     */
     removeOpenGrid(grid){
         let idx = this.openList.findIndex(g=>g.equals(grid));
         if (idx != -1) {
@@ -223,11 +270,19 @@ class AstarManagerClass {
         if (list.length > 0) {
             for (let i = list.length - 1; i >= 0; i--) {
                 let type = this.map[list[i].key];
+                let idx = NOT_PASS_TYPES.indexOf(type);
+                if (idx != -1) {
+                    list.splice(i,1);
+                }
+                /* let flag = NOT_PASS_TYPES.find(notpass=>notpass == type);
+                if (flag) {
+                    list.splice(i,1);
+                }
                 if (type == GRID_TYPE.RIVER) {
                     list.splice(i,1);
                 }else if (type == GRID_TYPE.WALL) {
                     list.splice(i,1);
-                }
+                } */
             }
         }
     }
@@ -246,6 +301,107 @@ class AstarManagerClass {
 
     createGrid(x,y){
         return new Grid(x,y);
+    }
+    /**
+     * 是否可直达
+     * @param start 
+     * @param end 
+     */
+    canSee(start:Grid,end:Grid){
+        let minx = start.x < end.x ? start.x : end.x;
+        let maxx = start.x > end.x ? start.x : end.x;
+        let miny = start.y < end.y ? start.y : end.y;
+        let maxy = start.y > end.y ? start.y : end.y;
+        for (let minx = 0; minx <= maxx; minx++) {
+            for (let miny = 0; miny <= maxy; miny++) {
+                
+            
+            }
+            
+        }
+    }
+    CheckLineTest( A:Grid, B:Grid)
+    {
+        let re = 0;          
+        let Dx = Math.abs(B.x - A.x);
+        let Dy = Math.abs(B.y - A.y);
+        while (Dx >= 0)
+        {
+            let YY = 0;
+            let x = A.x + Dx * Math.sign(B.x - A.x);
+            while (Dy >= 0)
+            {
+                let y = A.y + Dx * Math.sign(B.y - A.y);
+                //输出结果
+                cc.log("格子"+x+","+y+"命中");
+
+                let IsFinish =false;
+                if (A.x != B.x)
+                {
+                    IsFinish = Math.abs(YY) > Math.abs((A.y - B.y) / (A.x - B.x));
+                    if (IsFinish)
+                    {
+                        break;
+                    }
+                }
+                YY++;
+                Dy--;
+            }
+            Dx --;
+        }
+        return re;
+    }
+    /**
+     * A B两点间穿过的格子
+     * @param A 
+     * @param B 
+     */
+    CheckLine(A:Grid, B:Grid)
+    {
+        let array = [];
+        let x1 = A.x; 
+        let y1 = A.y; 
+        let x2 = B.x; 
+        let y2 = B.y; 
+        let re = 0;
+        let increx = 0; 
+        let increy = 0; 
+        let x = 0; 
+        let y = 0;
+        let steps = 0; 
+        let i = 0;
+
+        if (Math.abs(x2 - x1) > Math.abs(y2 - y1))
+        {
+            steps = Math.abs(x2 - x1);
+        }
+        else
+        {
+            steps = Math.abs(y2 - y1);
+        }
+
+        increx = (x2 - x1) / steps;
+        increy = (y2 - y1) / steps;
+        x = x1;
+        y = y1;
+
+        for (i = 1; i <= steps; i++)
+        {
+            //putpixel(x，y，color); //在(x，y)处，以color色画点
+            // if (!CheckMap(map, x, y))
+            // { 
+            //     re++; 
+            // }
+            if (re > 0) {
+                cc.log(Math.ceil(x),Math.ceil(y));
+                array.push(cc.v2(x,y));
+            }
+            
+            x += increx;
+            y += increy;
+            re++;
+        }
+        return array;
     }
 }
 

@@ -1,36 +1,46 @@
 import { AstarManager, GRID_TYPE } from "./AstarManager";
+import { NPC_TYPE } from "./cfg/const";
 
 const {ccclass, property, executeInEditMode} = cc._decorator;
+
+
+
 
 @ccclass
 // @executeInEditMode
 export default class name extends cc.Component {
     static res = '';
     @property(cc.Node)
-    tile:cc.Node;
+    modelList:cc.Node;
     @property(cc.Node)
     map:cc.Node;
     @property(cc.Node)
     role:cc.Node;
     @property(cc.Node)
     end:cc.Node;
+    @property(cc.Graphics)
+    graphics :cc.Graphics;
+
+
     side = 50
     side2 = this.side - 2;
 
     roleOldPosition:cc.Vec2;
     roleOldGrid;
-    @property(cc.Graphics)
-    graphics :cc.Graphics;
 
-
+    roleSpeed = 100; //移动速度
+    NODE_NAME = {
+        '1' : ''
+    }
+    
     onLoad () {
         // this.showBindNodes();
         this.role.on(cc.Node.EventType.TOUCH_START, (e:cc.Event.EventTouch)=>{
             this.roleOldPosition = this.role.position;
         })
         this.role.on(cc.Node.EventType.TOUCH_MOVE, (e:cc.Event.EventTouch)=>{
-            this.role.x = this.role.x + e.getDeltaX();
-            this.role.y = this.role.y + e.getDeltaY();
+            // this.role.x = this.role.x + e.getDeltaX();
+            // this.role.y = this.role.y + e.getDeltaY();
 
             let location = e.getLocation();
             let mapPos = this.map.convertToNodeSpaceAR(location);
@@ -40,6 +50,8 @@ export default class name extends cc.Component {
                 
                 this.updateRoleGrid(grid.x,grid.y);
                 this.roleOldGrid = grid;
+                let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
+                this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
             }
             // let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
             // this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
@@ -63,25 +75,32 @@ export default class name extends cc.Component {
     updateRoleGrid(x,y){
         let start = AstarManager.createGrid(x,y);
         let end = AstarManager.createGrid(3, 3);
+        AstarManager.CheckLine(start, end);
         let road = AstarManager.search(start, end);
+        this.drawRoad(road);
+    }
+
+    /**
+     * 绘制路线
+     * @param road 起点格子;
+     */
+    drawRoad(road){
         this.graphics.clear();
-        this.graphics.lineWidth = 10;
+        this.graphics.lineWidth = 2;
         this.graphics.fillColor.fromHEX('#ff0000');
         if (road) {
-            // let npos = this.getMapPosition(road.x, road.y);
-            // let wpos = this.map.convertToWorldSpaceAR(npos);
-            // this.graphics.moveTo(wpos.x,wpos.y);
             let i = 0;
             while(road) {
                 let npos = this.getMapPosition(road.x, road.y);
                 let wpos = this.map.convertToWorldSpaceAR(npos);
-                console.log(road.key);
-                console.log('n:',npos);
-                console.log('w:',wpos);
-                if (i == 0 || (road.parent && road.x != road.parent.x && road.y != road.parent.y) {
+                // console.log(road.key);
+                // console.log('n:',npos);
+                // console.log('w:',wpos);
+                if (i == 0) {
                     this.graphics.moveTo(wpos.x,wpos.y);
                 }else {
                     this.graphics.lineTo(wpos.x,wpos.y);
+                    this.graphics.moveTo(wpos.x,wpos.y);
                 }
                 road = road.parent;
                 i++;
@@ -103,27 +122,44 @@ export default class name extends cc.Component {
             '1*1':GRID_TYPE.WALL,
             '1*2':GRID_TYPE.FLOOR,
             '1*3':GRID_TYPE.RIVER,
+            '8*6':GRID_TYPE.RIVER,
+            '7*7':GRID_TYPE.RIVER,
+            '7*8':GRID_TYPE.WALL,
+            '7*9':GRID_TYPE.FLOOR,
+            '7*10':GRID_TYPE.RIVER,
         }
-        AstarManager.init(this.map.width, this.map.height, this.side,map);
-        let start = AstarManager.createGrid(0,0);
-        let end = AstarManager.createGrid(3, 3);
-        let road = AstarManager.search(start, end);
-        if (road) {
-            while(road.parent) {
-                console.log(road.key);
-                road = road.parent;
-            }
+        let npc = {
+            '5*5': NPC_TYPE.FARMER,
+            '5*6':NPC_TYPE.CORPSE,
+            '5*7':NPC_TYPE.MOUSE,
         }
-        this.initMap();
+        // 初始配置数据
+        let cfgData = {
+            map:map,
+            npc:npc,
+        }
+        // 初始化 映射地图
+        AstarManager.init(this.map.width, this.map.height, this.side, cfgData.map);
+        // 初始化地图
+        this.initMap(cfgData);
         // this.map.active = false;
     }
 
-    initMap(){
-        let floor = this.tile.getChildByName('floor');
-        let river = this.tile.getChildByName('river');
-        let wall = this.tile.getChildByName('wall');
-        let start = this.tile.getChildByName('start');
-        let end = this.tile.getChildByName('end');
+    getFloor(type:GRID_TYPE){
+        
+        let bg:cc.Node;
+        let model = this.modelList.getChildByName(type);
+        bg = cc.instantiate(model);
+    }
+
+    
+    
+    initMap(cfg){
+        let floor = this.modelList.getChildByName('floor');
+        let river = this.modelList.getChildByName('river');
+        let wall = this.modelList.getChildByName('wall');
+        let start = this.modelList.getChildByName('start');
+        let end = this.modelList.getChildByName('end');
         floor.width = this.side2
         floor.height = this.side2
         river.width = this.side2
@@ -135,6 +171,7 @@ export default class name extends cc.Component {
         end.width = this.side2 * 0.9
         end.height = this.side2 * 0.9
 
+        this.map.removeAllChildren();
         let bg:cc.Node;
         for (const key in AstarManager.map){
             let [x,y] = key.split('*');
@@ -149,12 +186,12 @@ export default class name extends cc.Component {
             }
             bg.name = key;
             bg.position = position;
-            cc.log(key,bg.position);
+            // cc.log(key,bg.position);
             bg.parent = this.map;
         }
         let nodes = this.map.children;
         for (const child of nodes) {
-            cc.log(child.name,child);
+            // cc.log(child.name,child);
         }
 
         // 位置标记
@@ -174,8 +211,28 @@ export default class name extends cc.Component {
     getMapGrid(x,y){
         return cc.v2(Math.floor(x / this.side),Math.floor(y / this.side));
     }
-    
+    /**
+     * 更新 role 位置
+     */
+    updateRolePosition(){
+
+    }
+    // 更新 npc 查询到的玩家位置记录
+    updateRecordPosition(){
+
+    }
+
+    //更新 NPC 位置
+    updateNpcPosition(){
+
+    }
+
     update (dt) {
 
     }
+}
+
+
+class classTwo {
+    
 }
