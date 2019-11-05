@@ -9,17 +9,7 @@ export enum NPC_TYPE {
     SNIPER = 8, //狙击手
 }
 
-export const NPC_NODE_NAME = [
-    '',
-    'farmer', // 1 农民
-    'monster', // 2 妖怪
-    'mouse', // 3 老鼠
-    'sprite', // 4 精灵
-    'corpse', // 5 僵尸
-    'mummy', // 6 木乃伊
-    'soldier', // 7 士兵
-    'sniper', // 8 狙击手
-]
+
 
 export enum ROLE_TYPE {
     ROLE1 = 1,
@@ -27,9 +17,3 @@ export enum ROLE_TYPE {
     ROLE3 = 3,
 }
 
-export const ROLE_NODE_NAME = [
-    '',
-    'role1',
-    'role2',
-    'role3',
-]

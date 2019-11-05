@@ -1,5 +1,3 @@
-import { Quat } from './../creator.d';
-console.log('ts');
 
 // A 星寻路算法 F = G + H;
 // G 代表从起点走到当前格子的成本

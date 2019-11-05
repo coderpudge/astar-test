@@ -1,8 +1,28 @@
 import { AstarManager, GRID_TYPE } from "./AstarManager";
-import { NPC_TYPE } from "./cfg/const";
+import { NPC_TYPE } from "./script/cfg/const";
+import { MapTable } from "./script/cfg/map";
+import { TableManager } from "./script/manager/TableManager";
 
 const {ccclass, property, executeInEditMode} = cc._decorator;
 
+export const NPC_NODE_NAME = [
+    '',
+    'farmer', // 1 农民
+    'monster', // 2 妖怪
+    'mouse', // 3 老鼠
+    'sprite', // 4 精灵
+    'corpse', // 5 僵尸
+    'mummy', // 6 木乃伊
+    'soldier', // 7 士兵
+    'sniper', // 8 狙击手
+]
+
+export const ROLE_NODE_NAME = [
+    '',
+    'role1',
+    'role2',
+    'role3',
+]
 
 
 
@@ -138,19 +158,31 @@ export default class name extends cc.Component {
             map:map,
             npc:npc,
         }
+        let a:MapTable =  TableManager.getTableInfo(MapTable, 1);
+        console.log(a.id);
+        console.log(MapTable.length);
+        console.log(TableManager.getLen(MapTable));
+        let single = TableManager.getTableInfoByCombId(MapTable, ['id','otherType'], [2,2]);
+        cc.log(single)
+        let mul = TableManager.getTableInfoByCombId(MapTable, ['id','otherType'], [2,2],false);
+        cc.log(mul);
+
+
+        return;
         // 初始化 映射地图
         AstarManager.init(this.map.width, this.map.height, this.side, cfgData.map);
         // 初始化地图
         this.initMap(cfgData);
         // this.map.active = false;
+        
     }
 
-    getFloor(type:GRID_TYPE){
+    // getFloor(type:GRID_TYPE){
         
-        let bg:cc.Node;
-        let model = this.modelList.getChildByName(type);
-        bg = cc.instantiate(model);
-    }
+    //     let bg:cc.Node;
+    //     let model = this.modelList.getChildByName(type);
+    //     bg = cc.instantiate(model);
+    // }
 
     
     
