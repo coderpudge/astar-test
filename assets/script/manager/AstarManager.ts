@@ -1,3 +1,5 @@
+import { MapTable } from "../cfg/map";
+
 
 // A 星寻路算法 F = G + H;
 // G 代表从起点走到当前格子的成本
@@ -25,7 +27,7 @@ export enum DIRECT_TYPE{
     EIGHT = 2,//八向
 }
 
-class Grid {
+export class Grid {
     key=''; //唯一标识符
     x=0; // 行
     y=0; // 列
@@ -84,30 +86,38 @@ class AstarManagerClass {
     end:Grid;
     directType=DIRECT_TYPE.EIGHT; //寻路方式 (四向 / 八向);
     map={};
+    defGridType = GRID_TYPE.FLOOR;
     static readonly instance = new AstarManagerClass();
 
     constructor() {
         
     }
-    init(width,height,side,map?){
+    init(width,height,side,conf?:MapTable){
         this.side = side;
         this.cell = Math.floor(height / this.side);
         this.col = Math.floor(width / this.side);
         cc.log('astar init:','cell(行):',this.cell,'col(列):',this.col,'side(边长):',this.side);
         // 初始地图
         this.map = [];
+        // 读取配置文件中默认地板的类型
+        if (conf && conf.defType) {
+            this.defGridType = conf.defType;
+        }
+        // 初始化 地板默认类型
         for (let i = 0; i < this.cell; i++) {
             for (let j = 0; j < this.col; j++) {
-                let type = GRID_TYPE.FLOOR;
-                this.map[i+'*'+j] = type;
+                this.map[i+'*'+j] = this.defGridType;
             }
         }
-        if (map) {
-            for (const key in map) {
-                this.map[key] = map[key];
+        // 初始化 特殊地板的类型
+        if (conf && conf.markType) {
+            // 格式 : '1*0:1, 4*4:2, 0*3:4'
+            let arr = conf.markType.split(',');
+            for (const pt of arr) {
+                let [pos,type] = pt.split(':');
+                this.map[pos] = type;
             }
         }
-
     }
     /**
      * 查找路线
@@ -149,6 +159,19 @@ class AstarManagerClass {
         //OpenList用尽，仍然找不到终点，说明终点不可到达，返回空
         return null;
     }
+
+    searchRoute(start:Grid, end:Grid):Grid[] {
+        let road = this.search(start, end);
+        let route = [];
+        if (road) {
+            while(road) {
+                route.unshift(road);
+                road = road.parent;
+            }
+        }
+        return route;
+    }
+
     /**
      * 获得最小 F 值的节点
      */
@@ -300,6 +323,8 @@ class AstarManagerClass {
     createGrid(x,y){
         return new Grid(x,y);
     }
+
+    
     /**
      * 是否可直达
      * @param start 
@@ -401,6 +426,8 @@ class AstarManagerClass {
         }
         return array;
     }
+
+
 }
 
 export const AstarManager = AstarManagerClass.instance;
