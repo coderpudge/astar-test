@@ -66,7 +66,7 @@ export default class name extends cc.Component {
 
     roleSpeed = 100; //移动速度
     curMapId = 1; //当前地图 ID
-    npcNodeInfo : {[key:string] : NpcInfo} = {}; 
+    npcInfoMap : {[key:string] : NpcInfo} = {}; 
     npcMoveRoute = {}; // npc 移动路线
     
     onLoad () {
@@ -202,7 +202,7 @@ export default class name extends cc.Component {
     initNpc(cfg:MapTable){
         this.npcList.removeAllChildren();
         if (cfg.npc) {
-            this.npcNodeInfo = this.npcNodeInfo || {};
+            this.npcInfoMap = this.npcInfoMap || {};
             let npcArr = cfg.npc.split(',');
             for (const pt of npcArr) {
                 let [pos,npcId] = pt.split(':');
@@ -218,7 +218,8 @@ export default class name extends cc.Component {
                 npcInfo.table = tbNpc;
                 npcInfo.start = new Grid(x,y);
                 npcInfo.isMoving = false;
-                this.npcNodeInfo[npc.uuid] = npcInfo;
+                npcInfo.npcNode = npc;
+                this.npcInfoMap[npc.uuid] = npcInfo;
             }
         }
     }
@@ -314,7 +315,7 @@ export default class name extends cc.Component {
     npcAutoMove(){
         for (let i = 0; i < this.npcList.childrenCount; i++) {
             let node = this.npcList.children[i];
-            if (!this.npcNodeInfo[node.uuid].route) {
+            if (!this.npcInfoMap[node.uuid].route) {
                 // let wpos = this.npcList.convertToWorldSpaceAR(node.position);
                 // let mpos = this.map.parent.convertToNodeSpaceAR(wpos); 
                 // let curGrid = this.getMapGrid(mpos.x,mpos.y);
@@ -333,7 +334,7 @@ export default class name extends cc.Component {
                         route = AstarManager.searchRoute(curNpcInfo.start, rdmGrid);
                     }
                 }
-                this.npcNodeInfo[node.uuid].route = route;
+                this.npcInfoMap[node.uuid].route = route;
             }
         }
     }
@@ -341,33 +342,52 @@ export default class name extends cc.Component {
 
     //更新 NPC 位置
     updateNpcPosition(dt){
-        for (const uuid in this.npcNodeInfo) {
-            if (this.npcNodeInfo.hasOwnProperty(uuid)) {
-                let info:NpcInfo = this.npcNodeInfo[uuid];
-                let node = this.npcList.getChildByUuid(uuid);
-                let distance = dt * info.table.speed;
-                // let wpos = this.npcList.convertToWorldSpaceAR(node.position);
-                // let mpos = this.map.convertToNodeSpaceAR(wpos);
+        for (const uuid in this.npcInfoMap) {
+            if (this.npcInfoMap.hasOwnProperty(uuid)) {
+                let info:NpcInfo = this.npcInfoMap[uuid];
+                let node = info.npcNode;
                 if (info.route && info.route.length > 0) {
-                    let grid:Grid = info.route[0];
+                    let nextGrid:Grid = info.route[0];
                     let curNpcInfo = this.getNpcInfo(uuid);
                     if (!curNpcInfo.isMoving) {
-                        grid = curNpcInfo.start;
+                        nextGrid = curNpcInfo.start;
+                        curNpcInfo.isMoving = true;
                     }
-                    curNpcInfo.isMoving = true;
-                    let pos = this.getMapPosition(grid.x, grid.y);
-                    let wpos = this.map.parent.convertToWorldSpaceAR(pos);
-                    let npcPos = this.npcList.convertToNodeSpaceAR(wpos);
-                    let len = npcPos.sub(node.position).mag();
-                    if (len > distance) {
-                        if (node.x == npcPos.x && node.y != npcPos.y) {
-                            node.y += distance;
+                    let nextPos = this.getMapPosition(nextGrid.x, nextGrid.y);
+                    let nextwpos = this.map.parent.convertToWorldSpaceAR(nextPos);
+                    let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
+                    let lenNext = nextNpcPos.sub(node.position).mag();
+                    let lenDt = dt * info.table.speed;
+                    //三角函数 lenDt / lenNext =( x3-x1) / (x2 - x1) = (y3 - y1) / (y2 -y1)
+                    // 下了个 dt 时间 , x y 移动的坐标
+                   
+
+                    if (lenDt > lenNext) {
+                        info.route.shift();
+                        // let oldGrid = nextGrid;
+                        let oldNpcPos = nextNpcPos
+                        if (info.route.length == 0) {
+                            curNpcInfo.isMoving = false;
+                        }else{
+                            nextGrid = info.route[0];
                         }
-                        if (node.x != npcPos.x && node.y == npcPos.y) {
-                            node.y += distance;
+                        let diff = lenDt - lenNext;
+
+                        if (curNpcInfo.isMoving) {
+                            let nextPos = this.getMapPosition(nextGrid.x, nextGrid.y);
+                            let nextwpos = this.map.parent.convertToWorldSpaceAR(nextPos);
+                            let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
+                            let lenNext = nextNpcPos.sub(oldNpcPos).mag();
+                            
+                            let dt_x = diff / lenNext  *  (nextNpcPos.x - oldNpcPos.x) + oldNpcPos.x;
+                            let dt_y = diff / lenNext  *  (nextNpcPos.y - oldNpcPos.y) + oldNpcPos.y;
+                            
+                            node.position = cc.v2(dt_x, dt_y);
                         }
                     }else{
-                        node.position = npcPos;
+                        let dt_x = lenDt / lenNext  *  (nextNpcPos.x - node.x) + node.x;
+                        let dt_y = lenDt / lenNext  *  (nextNpcPos.y - node.y) + node.y;
+                        node.position = cc.v2(dt_x, dt_y);
                     }
                 }
             }
@@ -375,7 +395,7 @@ export default class name extends cc.Component {
     }
 
     getNpcInfo(uuid):NpcInfo{
-        return this.npcNodeInfo[uuid];
+        return this.npcInfoMap[uuid];
     }
 
     update (dt) {
@@ -389,4 +409,5 @@ class NpcInfo {
     start:Grid;
     table:Tb_Npc;
     route : Array<Grid>;
+    npcNode:cc.Node;
 }
