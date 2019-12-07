@@ -5,6 +5,7 @@ import { MapTable } from "./script/cfg/map";
 import { TableManager } from "./script/manager/TableManager";
 import { AstarManager, GRID_TYPE, Grid } from "./script/manager/AstarManager";
 import { Tb_Npc } from './script/cfg/npc';
+import { DebugManager } from './script/manager/DebugManager';
 
 const {ccclass, property, executeInEditMode} = cc._decorator;
 
@@ -42,7 +43,7 @@ export const GRID_NODE_NAME = [
 
 @ccclass
 // @executeInEditMode
-export default class name extends cc.Component {
+export default class Main extends cc.Component {
     static res = '';
     @property(cc.Node)
     modelList:cc.Node;
@@ -64,43 +65,37 @@ export default class name extends cc.Component {
     roleOldPosition:cc.Vec2;
     roleOldGrid;
 
-    roleSpeed = 100; //移动速度
+    roleSpeed = 300; //移动速度
     curMapId = 1; //当前地图 ID
     npcInfoMap : {[key:string] : NpcInfo} = {}; 
     npcMoveRoute = {}; // npc 移动路线
+    runing: any = false;
     
     onLoad () {
+        
+        DebugManager.init();
+        DebugManager.setGolbalKey('Main', this);
         // this.showBindNodes();
         this.role.on(cc.Node.EventType.TOUCH_START, (e:cc.Event.EventTouch)=>{
             this.roleOldPosition = this.role.position;
         })
         this.role.on(cc.Node.EventType.TOUCH_MOVE, (e:cc.Event.EventTouch)=>{
-            // this.role.x = this.role.x + e.getDeltaX();
-            // this.role.y = this.role.y + e.getDeltaY();
-
+            // 世界坐标
             let location = e.getLocation();
+            // 地图坐标
             let mapPos = this.map.convertToNodeSpaceAR(location);
-            let grid = this.getMapGrid(mapPos.x, mapPos.y);
-            let gridPos = this.getMapPosition(grid.x, grid.y);
+            // 获取格子
+            let grid = AstarManager.getGridByPosition(mapPos.x, mapPos.y);
             if (grid != this.roleOldGrid) {
-                
-                this.updateRoleGrid(grid.x,grid.y);
+                this.updateRoleGrid(grid);
                 this.roleOldGrid = grid;
-                let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
-                this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
             }
-            // let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
-            // this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
-
         })
         this.role.on(cc.Node.EventType.TOUCH_END, (e:cc.Event.EventTouch)=>{
             let location = e.getLocation();
             let mapPos = this.map.convertToNodeSpaceAR(location);
-            let grid = this.getMapGrid(mapPos.x, mapPos.y);
-            let gridPos = this.getMapPosition(grid.x, grid.y);
-            this.updateRoleGrid(grid.x,grid.y);
-            let wGridPos = this.map.convertToWorldSpaceAR(gridPos);
-            this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
+            let grid = AstarManager.getGridByPosition(mapPos.x, mapPos.y);
+            this.updateRoleGrid(grid);
         })
         this.role.on(cc.Node.EventType.TOUCH_CANCEL, (e:cc.Event.EventTouch)=>{
             this.role.x = this.roleOldPosition.x;
@@ -108,10 +103,17 @@ export default class name extends cc.Component {
         })
     }
 
-    updateRoleGrid(x,y){
-        let start = AstarManager.createGrid(x,y);
-        let end = AstarManager.createGrid(3, 3);
-        AstarManager.CheckLine(start, end);
+    
+    updateRoleGrid(start:Grid){
+        if (!start) {
+            return;
+        }
+        let wGridPos = this.map.convertToWorldSpaceAR(start.getPosition());
+        this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
+        
+        let end = AstarManager.getGrid(6,6);
+
+        // AstarManager.CheckLine(start, end);
         let road = AstarManager.search(start, end);
         this.drawRoad(road);
     }
@@ -121,70 +123,53 @@ export default class name extends cc.Component {
      * @param road 起点格子;
      */
     drawRoad(road){
+        cc.log('drawing')
         this.graphics.clear();
-        this.graphics.lineWidth = 2;
-        this.graphics.fillColor.fromHEX('#ff0000');
         if (road) {
             let i = 0;
             while(road) {
-                let npos = this.getMapPosition(road.x, road.y);
-                let wpos = this.map.convertToWorldSpaceAR(npos);
-                // console.log(road.key);
-                // console.log('n:',npos);
-                // console.log('w:',wpos);
+                let npos = road.getPosition();
+                cc.log(road.key,i)
                 if (i == 0) {
-                    this.graphics.moveTo(wpos.x,wpos.y);
+                    this.graphics.moveTo(npos.x,npos.y);
                 }else {
-                    this.graphics.lineTo(wpos.x,wpos.y);
-                    this.graphics.moveTo(wpos.x,wpos.y);
+                    this.graphics.lineTo(npos.x,npos.y);
+                    // this.graphics.moveTo(npos.x,npos.y);
                 }
                 road = road.parent;
                 i++;
             }
-            this.graphics.close();
             this.graphics.stroke();
-            // this.graphics.fill();
         }
+        cc.log('draw end')
     }
     
 
     onButon(e,d){
-       /*  let map = {
-            '0*0':GRID_TYPE.WALL,
-            '0*1':GRID_TYPE.WALL,
-            '0*2':GRID_TYPE.RIVER,
-            '0*3':GRID_TYPE.RIVER,
-            '1*0':GRID_TYPE.RIVER,
-            '1*1':GRID_TYPE.WALL,
-            '1*2':GRID_TYPE.FLOOR,
-            '1*3':GRID_TYPE.RIVER,
-            '8*6':GRID_TYPE.RIVER,
-            '7*7':GRID_TYPE.RIVER,
-            '7*8':GRID_TYPE.WALL,
-            '7*9':GRID_TYPE.FLOOR,
-            '7*10':GRID_TYPE.RIVER,
-        }
-        let npc = {
-            '5*5': NPC_TYPE.FARMER,
-            '5*6':NPC_TYPE.CORPSE,
-            '5*7':NPC_TYPE.MOUSE,
-        } */
-      /*   // 初始配置数据
-        let cfgData = {
-            map:map,
-            npc:npc,
-        } */
-        if (this.curMapId >= 3) {
-            this.curMapId = 0;
-        }
-        this.curMapId ++;
-        let mapConf:MapTable =  TableManager.getTableInfo(MapTable, this.curMapId);
+      
+        switch (d) {
+            case 'init':
+                {
+                    if (this.curMapId >= 3) {
+                        this.curMapId = 0;
+                    }
+                    this.curMapId ++;
+                    
+                    // 初始化地图
+                    this.init(this.curMapId);
+                    break;
+                }
+            case 'startOrStop':
+            {
+                this.runing = !this.runing
+                let btn = cc.find('Canvas/btn_stop/Background/Label')
+                btn.getComponent(cc.Label).string = this.runing ? 'stop' : 'start'
+                break;
+            }
         
-        // 初始化 映射地图
-        AstarManager.init(this.map.width, this.map.height, this.side, mapConf);
-        // 初始化地图
-        this.initMap(mapConf);
-        // this.map.active = false;
+            default:
+                break;
+        }
         
     }
 
@@ -199,16 +184,59 @@ export default class name extends cc.Component {
         return bg;
     }
 
+    
+    
+    // convertToNpcZonePosition(npc:cc.Node,row,col){
+    //     // 父节点  this.npcList;
+    //     let wpos =  this.map.convertToWorldSpaceAR(this.getMapPosition(row, col));
+    //     npc.position = npc.parent.convertToNodeSpaceAR(wpos);
+    // }
+    
+    init(mapId){
+        // 初始化 A星映射地图
+        let cfg:MapTable =  TableManager.getTableInfo(MapTable, mapId);
+        AstarManager.init(this.map.width, this.map.height, this.side, cfg);
+        this.initMap(cfg);
+        this.initNpc(cfg);
+        this.initRole(cfg);
+        this.npcAutoMove();
+    }
+    /**
+     * 初始化 地图节点
+     * @param cfg 
+     */
+    initMap(cfg){
+        this.map.removeAllChildren();
+        let bg:cc.Node;
+        for (const key in AstarManager.gridList){
+            let grid = AstarManager.getGridByKey(key)
+            bg = this.getGridNode(grid.type);
+            bg.width = this.side2
+            bg.height = this.side2
+            bg.name = key;
+            bg.position = grid.getPosition();
+            bg.parent = this.map;
+        }
+    }
+    /**
+     * 初始化 NPC节点
+     * @param cfg 
+     */
     initNpc(cfg:MapTable){
         this.npcList.removeAllChildren();
         if (cfg.npc) {
-            this.npcInfoMap = this.npcInfoMap || {};
+            this.npcInfoMap = /* this.npcInfoMap || */ {};
             let npcArr = cfg.npc.split(',');
             for (const pt of npcArr) {
                 let [pos,npcId] = pt.split(':');
-                let [x,y] = pos.split('*');
+                let [row,col] = pos.split('*');
+                let grid = AstarManager.getGrid(parseInt(row),parseInt(col));
+                let flag = AstarManager.verifyGrid(grid);
+                if (!flag) {
+                    continue;
+                }
                 let tbNpc:Tb_Npc = TableManager.getTableInfo(Tb_Npc, npcId);
-                let wpos =  this.map.convertToWorldSpaceAR(this.getMapPosition(x, y));
+                let wpos =  this.map.convertToWorldSpaceAR(grid.getPosition());
                 let npc = this.getNpcNode(npcId);
                 npc.parent = this.npcList;
                 npc.position = npc.parent.convertToNodeSpaceAR(wpos);
@@ -216,129 +244,54 @@ export default class name extends cc.Component {
                 npc.height = this.side2 * 0.9;
                 let npcInfo = new NpcInfo();
                 npcInfo.table = tbNpc;
-                npcInfo.start = new Grid(x,y);
+                npcInfo.start = grid;
                 npcInfo.isMoving = false;
                 npcInfo.npcNode = npc;
                 this.npcInfoMap[npc.uuid] = npcInfo;
             }
         }
     }
-    
-    
-    initMap(cfg){
-        /* let floor = this.modelList.getChildByName('floor');
-        let river = this.modelList.getChildByName('river');
-        let wall = this.modelList.getChildByName('wall');
-        let start = this.modelList.getChildByName('start');
-        let end = this.modelList.getChildByName('end');
-        start.width = this.side2 * 0.9
-        start.height = this.side2 * 0.9
-        end.width = this.side2 * 0.9
-        end.height = this.side2 * 0.9 
-        floor.width = this.side2
-        floor.height = this.side2
-        river.width = this.side2
-        river.height = this.side2
-        wall.width = this.side2
-        wall.height = this.side2
-        */
-        this.map.removeAllChildren();
-        let bg:cc.Node;
-        for (const key in AstarManager.map){
-            let [x,y] = key.split('*');
-            let type = AstarManager.map[key];
-            let position = this.getMapPosition(x, y);
-            bg = this.getGridNode(type);
-            bg.width = this.side2
-            bg.height = this.side2
-            /* if (type == GRID_TYPE.FLOOR) {
-                bg = cc.instantiate(floor);
-            }else if (type == GRID_TYPE.RIVER) {
-                bg = cc.instantiate(river);
-            }else if (type == GRID_TYPE.WALL) {
-                bg = cc.instantiate(wall);
-            } */
-            bg.name = key;
-            bg.position = position;
-            // cc.log(key,bg.position);
-            bg.parent = this.map;
-        }
-        let nodes = this.map.children;
-        for (const child of nodes) {
-            // cc.log(child.name,child);
-        }
-
-        this.initNpc(cfg);
-        // 位置标记
-        /* let s = AstarManager.start;
-        if (s) {
-            let wSpos =  this.map.convertToWorldSpaceAR(this.getMapPosition(s.x, s.y));
-            start.position = start.parent.convertToNodeSpaceAR(wSpos);
-        }
-        let e = AstarManager.end;
-        if (e) {
-            let wEpos = this.map.convertToWorldSpaceAR(this.getMapPosition(e.x, e.y));
-            end.position = start.parent.convertToNodeSpaceAR(wEpos);
-        } */
-        this.npcAutoMove();
-        this.map.getChildByName('0*5').color = cc.Color.RED;
-    }
 
     /**
-     * 地图映射转 实际坐标
-     * @param x 地图映射 x
-     * @param y 地图映射 y
+     * 初始化 玩家节点
+     * @param cfg 
      */
-    getMapPosition(x,y){
-        return cc.v2((parseInt(x) + 0.5)*this.side, (parseInt(y) + 0.5)*this.side);
+    initRole(cfg){
+        let [col,row] = cfg.start.split('*');
+        let roleType = cfg.roleType;
+        let roleMapPos = AstarManager.getGrid(col, row).getPosition();
+        this.role.position = roleMapPos;
     }
 
-    /**
-     * 真实坐标 转 地图映射
-     * @param x  实际坐标 x
-     * @param y  实际坐标 y
-     */
-    getMapGrid(x,y){
-        return cc.v2(Math.floor(x / this.side),Math.floor(y / this.side));
-    }
-    /**
-     * 更新 role 位置
-     */
-    updateRolePosition(){
-
-    }
-    // 更新 npc 查询到的玩家位置记录
-    updateRecordPosition(){
-
-    }
 
     npcAutoMove(){
         for (let i = 0; i < this.npcList.childrenCount; i++) {
             let node = this.npcList.children[i];
-            if (!this.npcInfoMap[node.uuid].route) {
-                // let wpos = this.npcList.convertToWorldSpaceAR(node.position);
-                // let mpos = this.map.parent.convertToNodeSpaceAR(wpos); 
-                // let curGrid = this.getMapGrid(mpos.x,mpos.y);
-                // let npcGrid = AstarManager.createGrid(curGrid.x, curGrid.y)
-                let curNpcInfo = this.getNpcInfo(node.uuid);
-                // if (!curNpcInfo.isMoving) {
-                //     grid = curNpcInfo.start;
-                // }
-                let rdmGrid:Grid;
-                let route = [];
-                while(route.length == 0){
-                    let rdmx = ToolsManager.random(0, AstarManager.col);
-                    let rdmy = ToolsManager.random(0, AstarManager.cell);
-                    rdmGrid = AstarManager.createGrid(rdmx,rdmy);
-                    if (rdmGrid.canPass()) {
-                        route = AstarManager.searchRoute(curNpcInfo.start, rdmGrid);
-                    }
-                }
-                this.npcInfoMap[node.uuid].route = route;
+            if (!this.npcInfoMap[node.uuid].route || this.npcInfoMap[node.uuid].route.length == 0) {
+                this.setCanPassRoad(node);
             }
         }
     }
 
+    setCanPassRoad(npcNode:cc.Node){
+        let curNpcInfo = this.getNpcInfo(npcNode.uuid);
+        let rdmGrid:Grid;
+        let route = [];
+        while(route.length == 0){
+            let rdmrow = ToolsManager.random(0, AstarManager.row-1);
+            let rdmcol = ToolsManager.random(0, AstarManager.col-1);
+            rdmGrid = AstarManager.getGrid(rdmcol,rdmrow);
+            let curGrid = AstarManager.getGridByPosition(npcNode.x, npcNode.y);
+            curNpcInfo.start = curGrid;
+            if (rdmGrid.canPass()) {
+                route = AstarManager.searchRoute(curNpcInfo.start, rdmGrid);
+            }
+        }
+        // 抛出起始节点
+        route.pop();
+        this.npcInfoMap[npcNode.uuid].route = route;
+    }
+   
 
     //更新 NPC 位置
     updateNpcPosition(dt){
@@ -349,14 +302,16 @@ export default class name extends cc.Component {
                 if (info.route && info.route.length > 0) {
                     let nextGrid:Grid = info.route[0];
                     let curNpcInfo = this.getNpcInfo(uuid);
-                    if (!curNpcInfo.isMoving) {
-                        nextGrid = curNpcInfo.start;
+                    if (!curNpcInfo.isMoving){
+                        // nextGrid = curNpcInfo.start;
                         curNpcInfo.isMoving = true;
                     }
-                    let nextPos = this.getMapPosition(nextGrid.x, nextGrid.y);
-                    let nextwpos = this.map.parent.convertToWorldSpaceAR(nextPos);
+                    let nextPos = nextGrid.getPosition();
+                    let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
                     let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
                     let lenNext = nextNpcPos.sub(node.position).mag();
+                    
+                    
                     let lenDt = dt * info.table.speed;
                     //三角函数 lenDt / lenNext =( x3-x1) / (x2 - x1) = (y3 - y1) / (y2 -y1)
                     // 下了个 dt 时间 , x y 移动的坐标
@@ -368,27 +323,39 @@ export default class name extends cc.Component {
                         let oldNpcPos = nextNpcPos
                         if (info.route.length == 0) {
                             curNpcInfo.isMoving = false;
+                            this.scheduleOnce(()=>{
+                                this.setCanPassRoad(node);
+                            },3);
                         }else{
                             nextGrid = info.route[0];
                         }
                         let diff = lenDt - lenNext;
 
                         if (curNpcInfo.isMoving) {
-                            let nextPos = this.getMapPosition(nextGrid.x, nextGrid.y);
-                            let nextwpos = this.map.parent.convertToWorldSpaceAR(nextPos);
+                            let nextPos = nextGrid.getPosition()
+                            let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
                             let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
                             let lenNext = nextNpcPos.sub(oldNpcPos).mag();
+                            let dir = nextNpcPos.sub(oldNpcPos).normalize();
+                            let newpos = dir.mul(diff).add(oldNpcPos);
+                            node.position = newpos;
+
+                            // let dt_x = diff / lenNext  *  (nextNpcPos.x - oldNpcPos.x) + oldNpcPos.x;
+                            // let dt_y = diff / lenNext  *  (nextNpcPos.y - oldNpcPos.y) + oldNpcPos.y;
                             
-                            let dt_x = diff / lenNext  *  (nextNpcPos.x - oldNpcPos.x) + oldNpcPos.x;
-                            let dt_y = diff / lenNext  *  (nextNpcPos.y - oldNpcPos.y) + oldNpcPos.y;
-                            
-                            node.position = cc.v2(dt_x, dt_y);
+                            // node.position = cc.v2(dt_x, dt_y);
                         }
                     }else{
-                        let dt_x = lenDt / lenNext  *  (nextNpcPos.x - node.x) + node.x;
+                        let dir = nextNpcPos.sub(node.position).normalize();
+                        let newpos = dir.mul(lenDt).add(node.position);
+
+                        /* let dt_x = lenDt / lenNext  *  (nextNpcPos.x - node.x) + node.x;
                         let dt_y = lenDt / lenNext  *  (nextNpcPos.y - node.y) + node.y;
-                        node.position = cc.v2(dt_x, dt_y);
+                        node.position = cc.v2(dt_x, dt_y); */
+                        node.position = newpos;
                     }
+                }else{
+                    
                 }
             }
         }
@@ -399,7 +366,9 @@ export default class name extends cc.Component {
     }
 
     update (dt) {
-        this.updateNpcPosition(dt);
+        if (this.runing) {
+            this.updateNpcPosition(dt);
+        }
     }
 }
 

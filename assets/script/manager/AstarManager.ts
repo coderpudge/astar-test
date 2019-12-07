@@ -27,19 +27,25 @@ export enum DIRECT_TYPE{
     EIGHT = 2,//八向
 }
 
-export class Grid {
+export class Grid{
+    static separatorKey = '*'; //key 的分隔符
     key=''; //唯一标识符
-    x=0; // 行
-    y=0; // 列
-    f=0; // g + h (起点->当前 + 当前->终点)
-    g=0; // 起点->当前
-    h=0; // 当前->终点
-    type=GRID_TYPE.FLOOR; //格子类型
+    col:number=0; // 列
+    row:number=0; // 行
+    f:number=0; // g + h (起点->当前 + 当前->终点)
+    g:number=0; // 起点->当前
+    h:number=0; // 当前->终点
+    type:number=GRID_TYPE.FLOOR; //格子类型
     parent:Grid;
-    constructor(x,y) {
-        this.x = x;
-        this.y = y;
-        this.key = this.x + '*' + this.y;
+    /**
+     * 构造  (行,列)
+     * @param 行 
+     * @param 列 
+     */ 
+    constructor(col:number,row:number) {
+        this.col = col;
+        this.row = row;
+        this.key = this.col + Grid.separatorKey + this.row;
     }
     /**
      * 判断同一个格子
@@ -53,21 +59,30 @@ export class Grid {
      * @param start 
      * @param end 
      */
-    updateFGH(start:Grid,end:Grid){
-        // this.g = Math.abs(this.x - start.x ) + Math.abs(this.y - start.y);
-        // this.h = Math.abs(this.x - end.x ) + Math.abs(this.y - end.y);
-        this.g = Math.pow(this.x - start.x , 2) + Math.pow(this.y - start.y, 2);
-        this.h = Math.pow(this.x - end.x , 2) + Math.pow(this.y - end.y, 2);
+    updateFGH(start:Grid,end:Grid,parent?){
+        if (!parent) {
+            parent = this.parent;
+        }
+        let diffColG = Math.abs(parent.col - this.col);
+        let diffRowG = Math.abs(parent.row - this.row);
+
+        if (diffColG == diffRowG) {
+            this.g = Math.abs(this.col - parent.col ) * 14;
+        }else{
+            this.g = (Math.abs(this.col - parent.col ) + Math.abs(this.row - parent.row)) * 10;
+        }
+        this.h = (Math.abs(this.col - end.col ) + Math.abs(this.row - end.row)) * 10;
         this.f = this.g + this.h;
     }
     /**
      * 获取 实际坐标 (锚点:左下(0,0))
-     * @param x 
+     * @param row 
      * @param y 
      */
     getPosition(){
-        return cc.v2(this.x + 0.5 * AstarManager.side, (this.y + 0.5) * AstarManager.side);
+        return cc.v2((this.col + 0.5) * AstarManager.side, (this.row + 0.5) * AstarManager.side);
     }
+
     /**
      * 格式是否可通过;
      */
@@ -77,36 +92,43 @@ export class Grid {
     }
 }
 class AstarManagerClass {
-    cell=0; //行
-    col=0; //列
+    col=0; //列 (宽度决定)
+    row=0; //行 (高度决定)
     side=10;//边长
     openList:Grid[] = []; //可到达的格子
     closeList:Grid[] = []; // 已到达的格子
     start:Grid;
     end:Grid;
-    directType=DIRECT_TYPE.EIGHT; //寻路方式 (四向 / 八向);
-    map={};
+    directType=DIRECT_TYPE.FOUR; //寻路方式 (四向 / 八向);
+    // map={};
+    gridList:Map<string,Grid> = new Map();
     defGridType = GRID_TYPE.FLOOR;
     static readonly instance = new AstarManagerClass();
 
-    constructor() {
-        
-    }
+
+    /**
+     * 初始化 A星寻路
+     * @param width 宽度
+     * @param height 高度
+     * @param side 边长
+     * @param conf 差异配置
+     */
     init(width,height,side,conf?:MapTable){
         this.side = side;
-        this.cell = Math.floor(height / this.side);
         this.col = Math.floor(width / this.side);
-        cc.log('astar init:','cell(行):',this.cell,'col(列):',this.col,'side(边长):',this.side);
+        this.row = Math.floor(height / this.side);
+        cc.log('astar init:','col(列):',this.col,' row(行):',this.row,' side(边长):',this.side);
         // 初始地图
-        this.map = [];
+        // this.map = {};
         // 读取配置文件中默认地板的类型
         if (conf && conf.defType) {
             this.defGridType = conf.defType;
         }
         // 初始化 地板默认类型
-        for (let i = 0; i < this.cell; i++) {
+        for (let i = 0; i < this.row; i++) {
             for (let j = 0; j < this.col; j++) {
-                this.map[i+'*'+j] = this.defGridType;
+                // this.map[i+Grid.separatorKey+j] = this.defGridType;
+                this.gridList[j+Grid.separatorKey+i] = new Grid(j, i);
             }
         }
         // 初始化 特殊地板的类型
@@ -114,11 +136,44 @@ class AstarManagerClass {
             // 格式 : '1*0:1, 4*4:2, 0*3:4'
             let arr = conf.markType.split(',');
             for (const pt of arr) {
-                let [pos,type] = pt.split(':');
-                this.map[pos] = type;
+                let [pos,type] = pt.trim().split(':');
+                // this.map[pos] = parseInt(type);
+                this.gridList[pos].type = parseInt(type);
             }
         }
     }
+
+    /**
+     * 通过key(col*row) 获取<格子>
+     * @param key 
+     */
+    getGridByKey(key):Grid{
+        return this.gridList[key];
+    }
+    /**
+     * 通过行列 获取<格子>
+     * @param col 
+     * @param row 
+     */
+    getGrid(col,row):Grid{
+        return this.gridList[col+Grid.separatorKey+row];
+    }
+    /**
+     * 通过真实坐标 获取<格子>
+     * @param x 
+     * @param y 
+     */
+    getGridByPosition(x,y):Grid{
+        let col = Math.floor(x / this.side)
+        let row = Math.floor(y / this.side);
+        return this.getGrid(col, row);
+    }
+
+
+    // getPosition():cc.Vec2{
+    //     return cc.v2(this.col + 0.5 * AstarManager.side, (this.row + 0.5) * AstarManager.side);
+    // }
+
     /**
      * 查找路线
      * @param start 起点
@@ -126,8 +181,11 @@ class AstarManagerClass {
      * return 终点对象
      */
     search(start:Grid, end:Grid):Grid {
+        cc.log('start:',start,' end:',end);
         this.start = start;
         this.end = end;
+        start.parent = null;
+        end.parent = null;
         this.closeList = [];
         this.openList = [];
         // 把起点加入 open list  
@@ -146,13 +204,15 @@ class AstarManagerClass {
             this.closeList.push(current);
             // 找到所有邻近节点
             let neighborList:Grid[] = this.findNeighborList(current);
-            cc.log('neighbor:',neighborList);
             for (const grid of neighborList) {
                 this.markAndInvolve(current, grid);
             }
+            cc.log('neighbor:',neighborList);
             //如果终点在openList中，直接返回终点格子
             let og = this.openList.find(ogrid=>ogrid.equals(this.end));
             if (og) {
+                this.openList = [];
+                this.closeList = [];
                 return og;
             }
         }
@@ -161,6 +221,7 @@ class AstarManagerClass {
     }
 
     searchRoute(start:Grid, end:Grid):Grid[] {
+        cc.log('search: start',start, 'end:',end);
         let road = this.search(start, end);
         let route = [];
         if (road) {
@@ -181,11 +242,11 @@ class AstarManagerClass {
             return;
         }
         this.openList.sort((a,b)=>{
-            if (a.f == b.f) {
-                return a.h - b.h
-            }else{
+            // if (a.f == b.f) {
+            //     return a.h - b.h
+            // }else{
                 return a.f - b.f;
-            }
+            // }
         })
         return this.openList[0];
     }
@@ -195,7 +256,7 @@ class AstarManagerClass {
     removeOpenGrid(grid){
         let idx = this.openList.findIndex(g=>g.equals(grid));
         if (idx != -1) {
-            this.openList.splice(idx);
+            this.openList.splice(idx,1);
         }
     }
     /**
@@ -210,41 +271,41 @@ class AstarManagerClass {
         // openGL 坐标系 左下 (0,0)
         let up:Grid,down:Grid,left:Grid,right:Grid, leftUp:Grid,leftDown:Grid,rightUp:Grid,rightDown:Grid;
         // 边界控制
-        if (grid.y < this.cell - 1) {
-            up = new Grid(grid.x,grid.y + 1);
+        if (grid.row < this.row - 1) {
+            up = this.getGrid(grid.col,grid.row + 1);
             // up.updateFGH(this.start, this.end); //推迟更新 fgh , 验证障碍后再通过
             list.push(up);
         }
-        if (grid.y > 0) {
-            down = new Grid(grid.x,grid.y - 1);
+        if (grid.row > 0) {
+            down = this.getGrid(grid.col,grid.row - 1);
             // down.updateFGH(this.start, this.end);
             list.push(down);
         }
-        if (grid.x > 0) {
-            left = new Grid(grid.x - 1,grid.y);
+        if (grid.col > 0) {
+            left = this.getGrid(grid.col - 1,grid.row);
             // left.updateFGH(this.start, this.end);
             list.push(left);
         }
-        if (grid.x < this.col - 1) {
-            right = new Grid(grid.x + 1,grid.y);
+        if (grid.col < this.col - 1) {
+            right = this.getGrid(grid.col + 1,grid.row);
             // right.updateFGH(this.start, this.end);
             list.push(right);
         }
         if (this.directType == DIRECT_TYPE.EIGHT) {
-            if (grid.y < this.cell - 1 && grid.x > 0) {
-                leftUp = new Grid(grid.x - 1, grid.y + 1);
+            if (grid.row < this.row - 1 && grid.col > 0) {
+                leftUp = this.getGrid(grid.col - 1, grid.row + 1);
                 list.push(leftUp);
             }
-            if (grid.y < this.cell - 1 && grid.x < this.col - 1) {
-                rightUp = new Grid(grid.x + 1, grid.y + 1);
+            if (grid.row < this.row - 1 && grid.col < this.col - 1) {
+                rightUp = this.getGrid(grid.col + 1, grid.row + 1);
                 list.push(rightUp);
             }
-            if (grid.y > 0 && grid.x > 0) {
-                leftDown = new Grid(grid.x - 1, grid.y - 1);
+            if (grid.row > 0 && grid.col > 0) {
+                leftDown = this.getGrid(grid.col - 1, grid.row - 1);
                 list.push(leftDown);
             }
-            if (grid.y > 0 && grid.x < this.col - 1) {
-                rightDown = new Grid(grid.x + 1, grid.y - 1);
+            if (grid.row > 0 && grid.col < this.col - 1) {
+                rightDown = this.getGrid(grid.col + 1, grid.row - 1);
                 list.push(rightDown);
             }
         }
@@ -262,7 +323,7 @@ class AstarManagerClass {
             if (list.length > 0) {
                 let idx = list.findIndex(grid=>grid.equals(openGrid));
                 if (idx != -1) {
-                    cc.log('filter opend:',list[idx].x,list[idx].y)
+                    cc.log('filter opend:',list[idx].col,list[idx].row)
                     list.splice(idx,1);
                 }
             }
@@ -277,7 +338,7 @@ class AstarManagerClass {
             if (list.length > 0) {
                 let idx = list.findIndex(grid=>grid.equals(closeGrid));
                 if (idx != -1) {
-                    cc.log('filter closed:',list[idx].x,list[idx].y)
+                    cc.log('filter closed:',list[idx].col,list[idx].row)
                     list.splice(idx,1);
                 }
             }
@@ -290,11 +351,16 @@ class AstarManagerClass {
     filterObstacle(list:Grid[]){
         if (list.length > 0) {
             for (let i = list.length - 1; i >= 0; i--) {
-                let type = this.map[list[i].key];
-                let idx = NOT_PASS_TYPES.indexOf(type);
+                let grid = this.gridList[list[i].key];
+                if (!grid) {
+                    cc.error('not found:',list[i].key)
+                    continue;
+                }
+                let idx = NOT_PASS_TYPES.indexOf(grid.type);
                 if (idx != -1) {
                     list.splice(i,1);
                 }
+                
                 /* let flag = NOT_PASS_TYPES.find(notpass=>notpass == type);
                 if (flag) {
                     list.splice(i,1);
@@ -316,12 +382,8 @@ class AstarManagerClass {
      */
     markAndInvolve(parent:Grid, openGrid:Grid){
         openGrid.parent = parent;
-        openGrid.updateFGH(this.start, this.end);
+        openGrid.updateFGH(this.start, this.end, parent);
         this.openList.push(openGrid);
-    }
-
-    createGrid(x,y){
-        return new Grid(x,y);
     }
 
     
@@ -331,10 +393,10 @@ class AstarManagerClass {
      * @param end 
      */
     canSee(start:Grid,end:Grid){
-        let minx = start.x < end.x ? start.x : end.x;
-        let maxx = start.x > end.x ? start.x : end.x;
-        let miny = start.y < end.y ? start.y : end.y;
-        let maxy = start.y > end.y ? start.y : end.y;
+        let minx = start.col < end.col ? start.col : end.col;
+        let maxx = start.col > end.col ? start.col : end.col;
+        let miny = start.row < end.row ? start.row : end.row;
+        let maxy = start.row > end.row ? start.row : end.row;
         for (let minx = 0; minx <= maxx; minx++) {
             for (let miny = 0; miny <= maxy; miny++) {
                 
@@ -346,22 +408,22 @@ class AstarManagerClass {
     CheckLineTest( A:Grid, B:Grid)
     {
         let re = 0;          
-        let Dx = Math.abs(B.x - A.x);
-        let Dy = Math.abs(B.y - A.y);
+        let Dx = Math.abs(B.col - A.col);
+        let Dy = Math.abs(B.row - A.row);
         while (Dx >= 0)
         {
             let YY = 0;
-            let x = A.x + Dx * Math.sign(B.x - A.x);
+            let x = A.col + Dx * Math.sign(B.col - A.col);
             while (Dy >= 0)
             {
-                let y = A.y + Dx * Math.sign(B.y - A.y);
+                let y = A.row + Dx * Math.sign(B.row - A.row);
                 //输出结果
                 cc.log("格子"+x+","+y+"命中");
 
                 let IsFinish =false;
-                if (A.x != B.x)
+                if (A.col != B.col)
                 {
-                    IsFinish = Math.abs(YY) > Math.abs((A.y - B.y) / (A.x - B.x));
+                    IsFinish = Math.abs(YY) > Math.abs((A.row - B.row) / (A.col - B.col));
                     if (IsFinish)
                     {
                         break;
@@ -382,10 +444,10 @@ class AstarManagerClass {
     CheckLine(A:Grid, B:Grid)
     {
         let array = [];
-        let x1 = A.x; 
-        let y1 = A.y; 
-        let x2 = B.x; 
-        let y2 = B.y; 
+        let x1 = A.col; 
+        let y1 = A.row; 
+        let x2 = B.col; 
+        let y2 = B.row; 
         let re = 0;
         let increx = 0; 
         let increy = 0; 
@@ -426,7 +488,13 @@ class AstarManagerClass {
         }
         return array;
     }
-
+    verifyGrid(grid:Grid){
+        if (grid.row > this.row - 1 || grid.col > this.col -1) {
+            cc.error('超出越界:',grid);
+            return false;
+        }
+        return true;
+    }
 
 }
 
