@@ -104,6 +104,7 @@ class AstarManagerClass {
     gridList:Map<string,Grid> = new Map();
     defGridType = GRID_TYPE.FLOOR;
     static readonly instance = new AstarManagerClass();
+    config:MapTable;
 
 
     /**
@@ -118,6 +119,7 @@ class AstarManagerClass {
         this.col = Math.floor(width / this.side);
         this.row = Math.floor(height / this.side);
         cc.log('astar init:','col(列):',this.col,' row(行):',this.row,' side(边长):',this.side);
+        this.config = conf;
         // 初始地图
         // this.map = {};
         // 读取配置文件中默认地板的类型
@@ -141,6 +143,50 @@ class AstarManagerClass {
                 this.gridList[pos].type = parseInt(type);
             }
         }
+    }
+
+    exportData(defType:number,start,end,){
+        let conf:MapTable = new MapTable();
+        conf.defType = defType;
+        conf.start = start;
+        conf.end = end;
+        let keys = this.gridList.keys();
+        let floor = '';
+        // 生成地图
+        for (const key of keys) {
+            let grid:Grid = this.gridList[key];
+            if (defType == grid.type) {
+                continue
+            }
+            floor += key + ':' + grid.type + ',';
+        }
+        if (floor.length > 2) {
+            floor.substring(0,floor.length - 2)
+        }
+        // 生成 NPC
+
+        
+        // 生成所有数据
+        let id = this.getNextMapId();
+        conf.tableData[id] = [];
+        for (let i = 0; i < conf.tableName.length; i++) {
+            const name = conf.tableName[i];
+            conf.tableData[id][i] = conf[name];
+        }  
+
+
+    }
+
+    getNextMapId(){
+        let id = 0;
+        for (const key in this.config.tableData) {
+            if (this.config.tableData.hasOwnProperty(key)) {
+                if (id < parseInt(key)) {
+                    id = parseInt(key);
+                }
+            }
+        }
+        return id;
     }
 
     /**
@@ -494,6 +540,12 @@ class AstarManagerClass {
             return false;
         }
         return true;
+    }
+
+    updateGrid(grid:Grid,type){
+        let model = this.getGrid(grid.col, grid.row);
+        model.type = type;
+        
     }
 
 }

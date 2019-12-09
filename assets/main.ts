@@ -6,6 +6,9 @@ import { TableManager } from "./script/manager/TableManager";
 import { AstarManager, GRID_TYPE, Grid } from "./script/manager/AstarManager";
 import { Tb_Npc } from './script/cfg/npc';
 import { DebugManager } from './script/manager/DebugManager';
+import { NpcInfo } from './script/ui/NpcModel';
+import NpcMove from './script/ui/NpcMove';
+import { SceneManager } from './script/manager/SceneManager';
 
 const {ccclass, property, executeInEditMode} = cc._decorator;
 
@@ -70,11 +73,12 @@ export default class Main extends cc.Component {
     npcInfoMap : {[key:string] : NpcInfo} = {}; 
     npcMoveRoute = {}; // npc 移动路线
     runing: any = false;
+    npcIntelligence:{[npcNodeId:string]:cc.Vec2} = {};
     
     onLoad () {
-        
         DebugManager.init();
         DebugManager.setGolbalKey('Main', this);
+        
         // this.showBindNodes();
         this.role.on(cc.Node.EventType.TOUCH_START, (e:cc.Event.EventTouch)=>{
             this.roleOldPosition = this.role.position;
@@ -162,7 +166,7 @@ export default class Main extends cc.Component {
             case 'startOrStop':
             {
                 this.runing = !this.runing
-                let btn = cc.find('Canvas/btn_stop/Background/Label')
+                let btn = cc.find('Canvas/buttonList/btn_stop/Background/Label')
                 btn.getComponent(cc.Label).string = this.runing ? 'stop' : 'start'
                 break;
             }
@@ -193,13 +197,14 @@ export default class Main extends cc.Component {
     // }
     
     init(mapId){
+        SceneManager.init(this.map, this.npcList, this.role);
         // 初始化 A星映射地图
         let cfg:MapTable =  TableManager.getTableInfo(MapTable, mapId);
         AstarManager.init(this.map.width, this.map.height, this.side, cfg);
         this.initMap(cfg);
         this.initNpc(cfg);
         this.initRole(cfg);
-        this.npcAutoMove();
+        // this.npcAutoMove();
     }
     /**
      * 初始化 地图节点
@@ -225,7 +230,6 @@ export default class Main extends cc.Component {
     initNpc(cfg:MapTable){
         this.npcList.removeAllChildren();
         if (cfg.npc) {
-            this.npcInfoMap = /* this.npcInfoMap || */ {};
             let npcArr = cfg.npc.split(',');
             for (const pt of npcArr) {
                 let [pos,npcId] = pt.split(':');
@@ -247,7 +251,8 @@ export default class Main extends cc.Component {
                 npcInfo.start = grid;
                 npcInfo.isMoving = false;
                 npcInfo.npcNode = npc;
-                this.npcInfoMap[npc.uuid] = npcInfo;
+                let cmpt = npc.getComponent(NpcMove)
+                cmpt.setInfo(npcInfo);
             }
         }
     }
@@ -264,119 +269,113 @@ export default class Main extends cc.Component {
     }
 
 
-    npcAutoMove(){
-        for (let i = 0; i < this.npcList.childrenCount; i++) {
-            let node = this.npcList.children[i];
-            if (!this.npcInfoMap[node.uuid].route || this.npcInfoMap[node.uuid].route.length == 0) {
-                this.setCanPassRoad(node);
-            }
-        }
-    }
+    // npcAutoMove(){
+    //     for (let i = 0; i < this.npcList.childrenCount; i++) {
+    //         let node = this.npcList.children[i];
+    //         if (!this.npcInfoMap[node.uuid].route || this.npcInfoMap[node.uuid].route.length == 0) {
+    //             this.setCanPassRoad(node);
+    //         }
+    //     }
+    // }
 
-    setCanPassRoad(npcNode:cc.Node){
-        let curNpcInfo = this.getNpcInfo(npcNode.uuid);
-        let rdmGrid:Grid;
-        let route = [];
-        while(route.length == 0){
-            let rdmrow = ToolsManager.random(0, AstarManager.row-1);
-            let rdmcol = ToolsManager.random(0, AstarManager.col-1);
-            rdmGrid = AstarManager.getGrid(rdmcol,rdmrow);
-            let curGrid = AstarManager.getGridByPosition(npcNode.x, npcNode.y);
-            curNpcInfo.start = curGrid;
-            if (rdmGrid.canPass()) {
-                route = AstarManager.searchRoute(curNpcInfo.start, rdmGrid);
-            }
-        }
-        // 抛出起始节点
-        route.pop();
-        this.npcInfoMap[npcNode.uuid].route = route;
-    }
+    // setCanPassRoad(npcNode:cc.Node){
+    //     let curNpcInfo = this.getNpcInfo(npcNode.uuid);
+    //     let rdmGrid:Grid;
+    //     let route = [];
+    //     while(route.length == 0){
+    //         let rdmrow = ToolsManager.random(0, AstarManager.row-1);
+    //         let rdmcol = ToolsManager.random(0, AstarManager.col-1);
+    //         rdmGrid = AstarManager.getGrid(rdmcol,rdmrow);
+    //         let curGrid = AstarManager.getGridByPosition(npcNode.x, npcNode.y);
+    //         curNpcInfo.start = curGrid;
+    //         if (rdmGrid.canPass()) {
+    //             route = AstarManager.searchRoute(curNpcInfo.start, rdmGrid);
+    //         }
+    //     }
+    //     // 抛出起始节点
+    //     route.pop();
+    //     this.npcInfoMap[npcNode.uuid].route = route;
+    // }
    
 
     //更新 NPC 位置
-    updateNpcPosition(dt){
-        for (const uuid in this.npcInfoMap) {
-            if (this.npcInfoMap.hasOwnProperty(uuid)) {
-                let info:NpcInfo = this.npcInfoMap[uuid];
-                let node = info.npcNode;
-                if (info.route && info.route.length > 0) {
-                    let nextGrid:Grid = info.route[0];
-                    let curNpcInfo = this.getNpcInfo(uuid);
-                    if (!curNpcInfo.isMoving){
-                        // nextGrid = curNpcInfo.start;
-                        curNpcInfo.isMoving = true;
-                    }
-                    let nextPos = nextGrid.getPosition();
-                    let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
-                    let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
-                    let lenNext = nextNpcPos.sub(node.position).mag();
+    // updateNpcPosition(dt){
+    //     for (const uuid in this.npcInfoMap) {
+    //         if (this.npcInfoMap.hasOwnProperty(uuid)) {
+    //             let info:NpcInfo = this.npcInfoMap[uuid];
+    //             let node = info.npcNode;
+    //             if (info.route && info.route.length > 0) {
+    //                 let nextGrid:Grid = info.route[0];
+    //                 let curNpcInfo = this.getNpcInfo(uuid);
+    //                 if (!curNpcInfo.isMoving){
+    //                     // nextGrid = curNpcInfo.start;
+    //                     curNpcInfo.isMoving = true;
+    //                 }
+    //                 let nextPos = nextGrid.getPosition();
+    //                 let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
+    //                 let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
+    //                 let lenNext = nextNpcPos.sub(node.position).mag();
                     
                     
-                    let lenDt = dt * info.table.speed;
-                    //三角函数 lenDt / lenNext =( x3-x1) / (x2 - x1) = (y3 - y1) / (y2 -y1)
-                    // 下了个 dt 时间 , x y 移动的坐标
+    //                 let lenDt = dt * info.table.speed;
+    //                 //三角函数 lenDt / lenNext =( x3-x1) / (x2 - x1) = (y3 - y1) / (y2 -y1)
+    //                 // 下了个 dt 时间 , x y 移动的坐标
                    
 
-                    if (lenDt > lenNext) {
-                        info.route.shift();
-                        // let oldGrid = nextGrid;
-                        let oldNpcPos = nextNpcPos
-                        if (info.route.length == 0) {
-                            curNpcInfo.isMoving = false;
-                            this.scheduleOnce(()=>{
-                                this.setCanPassRoad(node);
-                            },3);
-                        }else{
-                            nextGrid = info.route[0];
-                        }
-                        let diff = lenDt - lenNext;
+    //                 if (lenDt > lenNext) {
+    //                     info.route.shift();
+    //                     // let oldGrid = nextGrid;
+    //                     let oldNpcPos = nextNpcPos
+    //                     if (info.route.length == 0) {
+    //                         curNpcInfo.isMoving = false;
+    //                         let delay = ToolsManager.random(0, 5);
+    //                         this.scheduleOnce(()=>{
+    //                             this.setCanPassRoad(node);
+    //                         },delay);
+    //                     }else{
+    //                         nextGrid = info.route[0];
+    //                     }
+    //                     let diff = lenDt - lenNext;
 
-                        if (curNpcInfo.isMoving) {
-                            let nextPos = nextGrid.getPosition()
-                            let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
-                            let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
-                            let lenNext = nextNpcPos.sub(oldNpcPos).mag();
-                            let dir = nextNpcPos.sub(oldNpcPos).normalize();
-                            let newpos = dir.mul(diff).add(oldNpcPos);
-                            node.position = newpos;
+    //                     if (curNpcInfo.isMoving) {
+    //                         let nextPos = nextGrid.getPosition()
+    //                         let nextwpos = this.map.convertToWorldSpaceAR(nextPos);
+    //                         let nextNpcPos = this.npcList.convertToNodeSpaceAR(nextwpos);
+    //                         let lenNext = nextNpcPos.sub(oldNpcPos).mag();
+    //                         let dir = nextNpcPos.sub(oldNpcPos).normalize();
+    //                         let newpos = dir.mul(diff).add(oldNpcPos);
+    //                         node.position = newpos;
 
-                            // let dt_x = diff / lenNext  *  (nextNpcPos.x - oldNpcPos.x) + oldNpcPos.x;
-                            // let dt_y = diff / lenNext  *  (nextNpcPos.y - oldNpcPos.y) + oldNpcPos.y;
+    //                         // let dt_x = diff / lenNext  *  (nextNpcPos.x - oldNpcPos.x) + oldNpcPos.x;
+    //                         // let dt_y = diff / lenNext  *  (nextNpcPos.y - oldNpcPos.y) + oldNpcPos.y;
                             
-                            // node.position = cc.v2(dt_x, dt_y);
-                        }
-                    }else{
-                        let dir = nextNpcPos.sub(node.position).normalize();
-                        let newpos = dir.mul(lenDt).add(node.position);
+    //                         // node.position = cc.v2(dt_x, dt_y);
+    //                     }
+    //                 }else{
+    //                     let dir = nextNpcPos.sub(node.position).normalize();
+    //                     let newpos = dir.mul(lenDt).add(node.position);
 
-                        /* let dt_x = lenDt / lenNext  *  (nextNpcPos.x - node.x) + node.x;
-                        let dt_y = lenDt / lenNext  *  (nextNpcPos.y - node.y) + node.y;
-                        node.position = cc.v2(dt_x, dt_y); */
-                        node.position = newpos;
-                    }
-                }else{
+    //                     /* let dt_x = lenDt / lenNext  *  (nextNpcPos.x - node.x) + node.x;
+    //                     let dt_y = lenDt / lenNext  *  (nextNpcPos.y - node.y) + node.y;
+    //                     node.position = cc.v2(dt_x, dt_y); */
+    //                     node.position = newpos;
+    //                 }
+    //             }else{
                     
-                }
-            }
-        }
-    }
+    //             }
+    //         }
+    //     }
+    // }
 
-    getNpcInfo(uuid):NpcInfo{
-        return this.npcInfoMap[uuid];
-    }
+    // getNpcInfo(uuid):NpcInfo{
+    //     return this.npcInfoMap[uuid];
+    // }
 
     update (dt) {
-        if (this.runing) {
-            this.updateNpcPosition(dt);
-        }
+        // if (this.runing) {
+        //     this.updateNpcPosition(dt);
+        // }
     }
 }
 
 
-class NpcInfo {
-    isMoving:boolean;
-    start:Grid;
-    table:Tb_Npc;
-    route : Array<Grid>;
-    npcNode:cc.Node;
-}
