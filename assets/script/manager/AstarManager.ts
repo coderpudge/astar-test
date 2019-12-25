@@ -240,10 +240,10 @@ class AstarManagerClass {
         let i = 0;
         while (this.openList.length > 0) {
             i++;
-            cc.log('round:',i);
+            // cc.log('round:',i);
             // 在this.openList中查找 F值最小的节点作为当前方格节点
             let current:Grid = this.findMinOpenGrid();
-            cc.log('curent:',current);
+            // cc.log('curent:',current);
             // 当前方格节点从open list中移除
             this.removeOpenGrid(current)
             // 当前方格节点进入 close list
@@ -253,7 +253,7 @@ class AstarManagerClass {
             for (const grid of neighborList) {
                 this.markAndInvolve(current, grid);
             }
-            cc.log('neighbor:',neighborList);
+            // cc.log('neighbor:',neighborList);
             //如果终点在openList中，直接返回终点格子
             let og = this.openList.find(ogrid=>ogrid.equals(this.end));
             if (og) {

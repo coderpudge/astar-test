@@ -9,6 +9,8 @@ import { DebugManager } from './script/manager/DebugManager';
 import { NpcInfo } from './script/ui/NpcModel';
 import NpcMove from './script/ui/NpcMove';
 import { SceneManager } from './script/manager/SceneManager';
+import { EVENT } from './script/const/Event';
+import { onfire } from './script/tools/onfire/onfire';
 
 const {ccclass, property, executeInEditMode} = cc._decorator;
 
@@ -112,6 +114,7 @@ export default class Main extends cc.Component {
         if (!start) {
             return;
         }
+        onfire.fire(EVENT.ROLE_GRID_UPDATE+'',this.role);
         let wGridPos = this.map.convertToWorldSpaceAR(start.getPosition());
         this.role.position = this.role.parent.convertToNodeSpaceAR(wGridPos);
         

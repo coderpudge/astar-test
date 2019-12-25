@@ -1,3 +1,4 @@
+import { EVENT } from './../const/Event';
 import { Grid, AstarManager } from "../manager/AstarManager";
 import { NpcInfo } from "./NpcModel";
 import { ToolsManager } from "../manager/ToolsManager";
@@ -14,11 +15,26 @@ export default class NpcMove extends cc.Component {
     roleGrid:Grid;
     lastRoleGrid:Grid;
     curGrid:Grid;
+    fireEvents = [];
 
-    onLoad() {
-        onfire.on('F_TARGET_UPDATE', this.onUpdateTarget, this);
+
+    onEnable(){
+        this.fireEvents = [
+            onfire.on(EVENT.ROLE_GRID_UPDATE+'', this.onUpdateTarget.bind(this),this)
+        ]
     }
-
+    onDisable(){
+        for (let i = 0; i < this.fireEvents.length; i++) {
+            const e = this.fireEvents[i];
+            onfire.un(e);
+        }
+    }
+    onDestroy(){
+        for (let i = 0; i < this.fireEvents.length; i++) {
+            const e = this.fireEvents[i];
+            onfire.un(e);
+        }
+    }
 
     setInfo(npcInfo) {
         this.npcInfo = npcInfo;
@@ -26,6 +42,7 @@ export default class NpcMove extends cc.Component {
     }
 
     onUpdateTarget(target?){
+        cc.log('fire',this);
         this.target = target;
         if (this.target) {
             this.npcAutoMove();
@@ -38,6 +55,12 @@ export default class NpcMove extends cc.Component {
 
     npcAutoMove() {
         if (this.target) {
+            if (this.node.parent != SceneManager.npcNode) {
+                return;
+            }
+            // let wnPos = this.node.parent.convertToWorldSpaceAR(this.node.position);
+            // let mnPos = SceneManager.mapNode.convertToNodeSpaceAR(wnPos);
+            // this.curGrid = AstarManager.getGridByPosition(mnPos.x, mnPos.y);
             let roleGrid = AstarManager.getGridByPosition(this.target.x, this.target.y);
             if (this.lastRoleGrid != roleGrid) {
                 let route = AstarManager.searchRoute(this.curGrid, roleGrid);
@@ -107,6 +130,10 @@ export default class NpcMove extends cc.Component {
                     }, delay);
                 } else {
                     nextGrid = this.npcInfo.route[0];
+                    if (this.curGrid != nextGrid) {
+                        this.curGrid  = nextGrid;
+                        cc.log('updt:',this);
+                    }
                 }
                 let diff = lenDt - lenNext;
 
@@ -129,7 +156,7 @@ export default class NpcMove extends cc.Component {
 
     update(dt) {
         this.updateNpcPosition(dt);
-        this.curGrid = AstarManager.getGridByPosition(this.node.x, this.node.y);
+        /* this.curGrid = AstarManager.getGridByPosition(this.node.x, this.node.y);
         let arr = [];
         if (SceneManager.roleNode && this.npcInfo) {
             let roleGrid = AstarManager.getGridByPosition(SceneManager.roleNode.x, SceneManager.roleNode.y);
@@ -138,7 +165,7 @@ export default class NpcMove extends cc.Component {
         }
         if (arr.length > 0) {
             this.onUpdateTarget(SceneManager.roleNode)
-        }/* else{
+        } *//* else{
             this.onUpdateTarget();
         } */
     }
